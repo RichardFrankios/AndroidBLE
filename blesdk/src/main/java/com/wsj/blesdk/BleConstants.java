@@ -8,12 +8,14 @@ package com.wsj.blesdk;
 public class BleConstants {
 
     // success
-    public static final int BLE_SUCCESS             = 0x0000;
+    public static final int BLE_SUCCESS                    = 0x0000;
 
     // connect failed
-    public static final int BLE_ERROR_CONNECT       = 0x1001;
+    public static final int BLE_ERROR_CONNECT              = 0x1001;
     // disconnect failed
-    public static final int BLE_ERROR_DISCONNECT    = 0x1002;
+    public static final int BLE_ERROR_DISCONNECT           = 0x1002;
+    // discovery services failed
+    public static final int BLE_ERROR_DISCOVER_SERVICES    = 0x1003;
 
 
 

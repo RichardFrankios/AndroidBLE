@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
@@ -14,11 +15,14 @@ import android.os.SystemClock;
 
 import com.wsj.blesdk.utils.LogUtil;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.wsj.blesdk.BleConstants.BLE_ERROR_CONNECT;
 import static com.wsj.blesdk.BleConstants.BLE_ERROR_DISCONNECT;
+import static com.wsj.blesdk.BleConstants.BLE_ERROR_DISCOVER_SERVICES;
 import static com.wsj.blesdk.BleConstants.BLE_SUCCESS;
 
 /**
@@ -63,6 +67,12 @@ public class BleManager {
     private String mNamePrefixFilter = null;
 
     private int mCurentBleutoothState = STATE_DISCONNECTED;
+
+    // 相关 UUID.
+    private String mCurrentGattServiceUuid ;
+    private String mCurrentGattWriteCharacteristicUuid ;
+    private String mCurrentGattReadCharacteristicUuid ;
+    private List<BluetoothGattService> mGattServices = new ArrayList<>();
 
     /* 蓝牙连接状态. */
     private static final int STATE_DISCONNECTED  = 0x00;
@@ -233,6 +243,9 @@ public class BleManager {
             SystemClock.sleep(50);
         }
 
+        // clear data
+        mGattServices = new ArrayList<>();
+
         // connect device
         final BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(address);
         if (device == null){
@@ -265,7 +278,81 @@ public class BleManager {
         return true;
     }
 
+    /**
+     * 开始查找服务.
+     */
+    public boolean discoverServices(){
+        if (!mIsInitialized || !isBluetoothNormal()
+                || (mCurentBleutoothState != STATE_CONNECTED)){
+            return false;
+        }
+        return mCurBluetoothGatt.discoverServices();
+    }
 
+    /**
+     * 获取服务列表
+     * @return
+     */
+    public List<BluetoothGattService> getBleServices(){
+        LogUtil.logFunc(TAG);
+        return mGattServices;
+    }
+
+    /**
+     * 获取特征值.
+     * @param serviceUuid
+     * @return
+     */
+    public List<BluetoothGattCharacteristic> getBleCharacteristics(String serviceUuid){
+        if (mGattServices == null)
+            return null;
+        BluetoothGattService service = getService(serviceUuid);
+        if (service == null)
+            return null;
+        return service.getCharacteristics();
+    }
+
+    /**
+     * 设置服务 UUID
+     * @param uuid uuid 字符串.
+     * @return
+     */
+    public BleManager setServiceUuid(String uuid){
+        mCurrentGattServiceUuid = uuid;
+        return this;
+    }
+
+    /**
+     * 设置写特征值.
+     * @param uuid uuid string
+     * @return
+     */
+    public BleManager setWriteCharacteristicUuid(String uuid){
+        mCurrentGattWriteCharacteristicUuid = uuid;
+        return this;
+    }
+
+    /**
+     * 设置读特征值.
+     * @param uuid uuid string
+     * @return
+     */
+    public BleManager setReadCharacteristicUuid(String uuid){
+        mCurrentGattReadCharacteristicUuid = uuid;
+        return this;
+    }
+
+//    public boolean transmitData2Device(final byte[] data) {
+//
+//    }
+
+    private BluetoothGattService getService(String serviceUuid) {
+        for (BluetoothGattService service : mGattServices) {
+            if (service.getUuid().toString().equals(serviceUuid))
+                return service;
+        }
+        return null;
+    }
     // BLE GATT回调.
     private BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
         @Override
@@ -275,36 +362,9 @@ public class BleManager {
 
             if (status == BluetoothGatt.GATT_SUCCESS){
                 // operation success
-                switch (newState){
-                    case BluetoothGatt.STATE_CONNECTED:
-                        mCurentBleutoothState = STATE_CONNECTED;
-                        mCurDeviceAddress = address;
-                        if (mListener != null)
-                            mListener.onBleConnected(address);
-                        break;
-                    case BluetoothProfile.STATE_DISCONNECTED:
-                        mCurentBleutoothState = STATE_DISCONNECTED;
-                        mCurDeviceAddress = null;
-                        mCurBluetoothGatt.close();
-                        mCurBluetoothGatt = null;
-                        if (mListener != null)
-                            mListener.onBleDisconnected(address);
-                        break;
-                }
+                connectionStateChangeSuccess(newState, address);
             }else {
-                int code = BLE_SUCCESS;
-                switch (mCurentBleutoothState){
-                    case STATE_CONNECTING:
-                        code = BLE_ERROR_CONNECT;
-                        mCurentBleutoothState = STATE_CONNECTED;
-                        break;
-                    case STATE_DISCONNECTING:
-                        code = BLE_ERROR_DISCONNECT;
-                        mCurentBleutoothState = STATE_DISCONNECTED;
-                        break;
-                }
-                if (code != BLE_SUCCESS && mListener != null)
-                    mListener.onBleError(code);
+                connectionStateChangeFailed();
             }
         }
 
@@ -315,7 +375,7 @@ public class BleManager {
 
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            super.onServicesDiscovered(gatt, status);
+            servicesDiscoveredProcess(gatt, status);
         }
 
         @Override
@@ -333,6 +393,66 @@ public class BleManager {
             super.onReadRemoteRssi(gatt, rssi, status);
         }
     };
+
+    /**
+     * 发现服务回调.
+     * @param gatt    GATT
+     * @param status  状态
+     */
+    private void servicesDiscoveredProcess(BluetoothGatt gatt, int status) {
+        LogUtil.logFunc(TAG);
+        if (status == BluetoothGatt.GATT_SUCCESS){
+            mGattServices = gatt.getServices();
+            if (mListener != null)
+                mListener.onBleDiscoverServices(mCurDeviceAddress);
+        }else {
+            if (mListener != null)
+                mListener.onBleError(BLE_ERROR_DISCOVER_SERVICES);
+        }
+    }
+
+    /**
+     * 设备连接/断开失败
+     */
+    private void connectionStateChangeFailed() {
+        int code = BLE_SUCCESS;
+        switch (mCurentBleutoothState){
+            case STATE_CONNECTING:
+                code = BLE_ERROR_CONNECT;
+                mCurentBleutoothState = STATE_CONNECTED;
+                break;
+            case STATE_DISCONNECTING:
+                code = BLE_ERROR_DISCONNECT;
+                mCurentBleutoothState = STATE_DISCONNECTED;
+                break;
+        }
+        if (code != BLE_SUCCESS && mListener != null)
+            mListener.onBleError(code);
+    }
+
+    /**
+     * 设备连接/断开成功
+     * @param newState  新状态
+     * @param address   设备地址
+     */
+    private void connectionStateChangeSuccess(int newState, String address) {
+        switch (newState){
+            case BluetoothGatt.STATE_CONNECTED:
+                mCurentBleutoothState = STATE_CONNECTED;
+                mCurDeviceAddress = address;
+                if (mListener != null)
+                    mListener.onBleConnected(address);
+                break;
+            case BluetoothProfile.STATE_DISCONNECTED:
+                mCurentBleutoothState = STATE_DISCONNECTED;
+                mCurDeviceAddress = null;
+                mCurBluetoothGatt.close();
+                mCurBluetoothGatt = null;
+                if (mListener != null)
+                    mListener.onBleDisconnected(address);
+                break;
+        }
+    }
 
 
     // BLE 扫描回调.

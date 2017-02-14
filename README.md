@@ -48,3 +48,21 @@
 ### 2.8 发生错误
 
 	public void onBleError(final int code);
+
+### 2.9 服务和特征
+
+	// 发现服务
+	boolean res = BleManager.getInstance().discoverServices();
+	// 获取服务列表
+	List<BluetoothGattService> bleServices = BleManager.getInstance().getBleServices();
+	// 获取特征列表
+	List<BluetoothGattCharacteristic> bleCharacteristics =
+                                BleManager.getInstance()
+                                        .getBleCharacteristics(service.getUuid().toString());
+	// 设置服务UUID
+	BleManager.getInstance.setServiceUuid(uuidStr);
+	// 设置写特征UUID
+	BleManager.getInstance.setWriteCharacteristicUuid(uuidStr);
+	// 设置读特征UUID
+	BleManager.getInstance.setReadCharacteristicUuid(uuidStr);
+

@@ -26,11 +26,14 @@ public interface BleListener {
     public void onBleDisconnected(final String address);
 
     /**
+     * 发现服务.
+     * @param address  设备地址.
+     */
+    public void onBleDiscoverServices(final String address);
+
+    /**
      * 发生错误
      * @param code 错误代码.
      */
     public void onBleError(final int code);
-
-
-
 }
