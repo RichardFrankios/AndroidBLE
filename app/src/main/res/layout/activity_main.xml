@@ -30,6 +30,17 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="停止扫描"/>
+    <Button
+        android:onClick="connectBle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="连接设备"/>
+    <Button
+        android:onClick="disconnectBle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="断开设备"/>
+
 
 
 

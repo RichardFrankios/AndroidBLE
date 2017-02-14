@@ -39,9 +39,38 @@ public class MainActivity extends AppCompatActivity implements BleListener {
         LogUtil.d(TAG,"停止扫描");
         BleManager.getInstance().stopBleScan();
     }
+    // 测试机
+    final String address = "87:83:01:15:98:25";
+    public void connectBle(View view) {
+        LogUtil.d(TAG,"连接设备 : " + address);
+        BleManager.getInstance().connectBleDevice(address);
+    }
+
+    public void disconnectBle(View view) {
+        LogUtil.d(TAG,"断开设备 : " + address);
+        BleManager.getInstance().disconnectBleDevice();
+    }
+
 
     @Override
-    public void onDiscoverDevice(String name, String address) {
-        LogUtil.d(TAG,"发现设备 : " + name);
+    public void onBleDiscover(String name, String address) {
+        LogUtil.d(TAG,"发现设备 : " + address);
     }
+
+    @Override
+    public void onBleConnected(String address) {
+        LogUtil.d(TAG,"设备已连接 : " + address);
+    }
+
+    @Override
+    public void onBleDisconnected(String address) {
+        LogUtil.d(TAG,"设备已断开 : " + address);
+    }
+
+    @Override
+    public void onBleError(int code) {
+        LogUtil.e(TAG,"发生错误 : " + String.format("%x",code));
+    }
+
+
 }

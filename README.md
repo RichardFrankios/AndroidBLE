@@ -29,3 +29,22 @@
 ### 2.5 停止扫描
 
 	boolean res = BleManager.getInstance().stopBleScan();
+
+### 2.6 连接设备
+
+	boolean res = BleManager.getInstance().connectBleDevice(address);
+**连接成功 : onBleConnected**
+
+	public void onBleConnected(final String address);
+
+### 2.7 断开设备
+
+	boolean res = BleManager.getInstance().disconnectBleDevice();
+
+**设备断开 : onBleDisconnected**
+
+	public void onBleDisconnected(final String address);
+
+### 2.8 发生错误
+
+	public void onBleError(final int code);

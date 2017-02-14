@@ -3,7 +3,10 @@ package com.wsj.blesdk;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -13,6 +16,10 @@ import com.wsj.blesdk.utils.LogUtil;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static com.wsj.blesdk.BleConstants.BLE_ERROR_CONNECT;
+import static com.wsj.blesdk.BleConstants.BLE_ERROR_DISCONNECT;
+import static com.wsj.blesdk.BleConstants.BLE_SUCCESS;
 
 /**
  * BLE Manager <br>
@@ -165,7 +172,7 @@ public class BleManager {
         if (device != null){
             mDevices.put(mCurDeviceAddress,device);
             if (mListener != null){
-                mListener.onDiscoverDevice(device.getName(),device.getAddress());
+                mListener.onBleDiscover(device.getName(),device.getAddress());
             }
         }
         if (mIsScaning){
@@ -190,6 +197,144 @@ public class BleManager {
         mIsScaning = false;
         return true;
     }
+
+    /**
+     * 连接指定地址的BLE设备.
+     * @param address   设备地址
+     * @return
+     *      是否成功发送连接请求.
+     */
+    public boolean connectBleDevice(final String address){
+        LogUtil.logFunc(TAG);
+        if (!mIsInitialized || !isBluetoothNormal()){
+            return false;
+        }
+        if (address == null || mDevices.get(address) == null){
+            return false;
+        }
+        if (mCurentBleutoothState == STATE_DISCONNECTING
+                || mCurentBleutoothState == STATE_CONNECTING){
+            return false;
+        }
+        // close gatt
+        if (mCurDeviceAddress != null){
+            if (mCurBluetoothGatt != null){
+                if (mCurDeviceAddress.equals(address)){
+                    return true;
+                }else {
+                    mCurBluetoothGatt.disconnect();
+                }
+            }
+            mCurDeviceAddress = null;
+        }
+        if (mCurBluetoothGatt != null){
+            mCurBluetoothGatt.close();
+            mCurBluetoothGatt = null;
+            SystemClock.sleep(50);
+        }
+
+        // connect device
+        final BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(address);
+        if (device == null){
+            LogUtil.e(TAG,"Device not found . Unable to connect");
+            return false;
+        }
+        // We want to directly connect to the device , so wo are setting the autoConnect
+        // Parameter false.
+        mCurBluetoothGatt = device.connectGatt(mContext,false,mGattCallback);
+        mCurDeviceAddress = address;
+        mCurentBleutoothState = STATE_CONNECTING;
+        return true;
+    }
+
+    /**
+     * 断开设备连接
+     */
+    public boolean disconnectBleDevice(){
+        LogUtil.logFunc(TAG);
+        if (!mIsInitialized || !isBluetoothNormal()){
+            return false;
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                mCurentBleutoothState = STATE_DISCONNECTING;
+                mCurBluetoothGatt.disconnect();
+            }
+        }).start();
+        return true;
+    }
+
+
+    // BLE GATT回调.
+    private BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
+        @Override
+        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            final String name = gatt.getDevice().getName();
+            final String address = gatt.getDevice().getAddress();
+
+            if (status == BluetoothGatt.GATT_SUCCESS){
+                // operation success
+                switch (newState){
+                    case BluetoothGatt.STATE_CONNECTED:
+                        mCurentBleutoothState = STATE_CONNECTED;
+                        mCurDeviceAddress = address;
+                        if (mListener != null)
+                            mListener.onBleConnected(address);
+                        break;
+                    case BluetoothProfile.STATE_DISCONNECTED:
+                        mCurentBleutoothState = STATE_DISCONNECTED;
+                        mCurDeviceAddress = null;
+                        mCurBluetoothGatt.close();
+                        mCurBluetoothGatt = null;
+                        if (mListener != null)
+                            mListener.onBleDisconnected(address);
+                        break;
+                }
+            }else {
+                int code = BLE_SUCCESS;
+                switch (mCurentBleutoothState){
+                    case STATE_CONNECTING:
+                        code = BLE_ERROR_CONNECT;
+                        mCurentBleutoothState = STATE_CONNECTED;
+                        break;
+                    case STATE_DISCONNECTING:
+                        code = BLE_ERROR_DISCONNECT;
+                        mCurentBleutoothState = STATE_DISCONNECTED;
+                        break;
+                }
+                if (code != BLE_SUCCESS && mListener != null)
+                    mListener.onBleError(code);
+            }
+        }
+
+        @Override
+        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            super.onCharacteristicRead(gatt, characteristic, status);
+        }
+
+        @Override
+        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            super.onServicesDiscovered(gatt, status);
+        }
+
+        @Override
+        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+            super.onCharacteristicChanged(gatt, characteristic);
+        }
+
+        @Override
+        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            super.onCharacteristicWrite(gatt, characteristic, status);
+        }
+
+        @Override
+        public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
+            super.onReadRemoteRssi(gatt, rssi, status);
+        }
+    };
+
+
     // BLE 扫描回调.
     private BluetoothAdapter.LeScanCallback mLeScanCallback =
             new BluetoothAdapter.LeScanCallback() {
@@ -199,9 +344,8 @@ public class BleManager {
             if (shouldSaveDevice(device)){
                 mDevices.put(device.getAddress(),device);
                 if (mListener != null)
-                    mListener.onDiscoverDevice(device.getName(),device.getAddress());
+                    mListener.onBleDiscover(device.getName(),device.getAddress());
             }
-
         }
     };
 
@@ -212,7 +356,7 @@ public class BleManager {
      * @param device
      * @return
      */
-    private boolean shouldSaveDevice(BluetoothDevice device) {
+    private boolean shouldSaveDevice(final BluetoothDevice device) {
         final String name = device.getName();
         final String address = device.getAddress();
 

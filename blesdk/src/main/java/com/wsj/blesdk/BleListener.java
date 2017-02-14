@@ -11,5 +11,26 @@ public interface BleListener {
      * @param name     设备名称
      * @param address  设备地址
      */
-    public void onDiscoverDevice(final String name, final String address);
+    public void onBleDiscover(final String name, final String address);
+
+    /**
+     * 设备连接.
+     * @param address  设备地址
+     */
+    public void onBleConnected(final String address);
+
+    /**
+     * 断开设备.
+     * @param address  设备地址
+     */
+    public void onBleDisconnected(final String address);
+
+    /**
+     * 发生错误
+     * @param code 错误代码.
+     */
+    public void onBleError(final int code);
+
+
+
 }
