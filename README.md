@@ -17,3 +17,15 @@
 ### 2.3 关闭蓝牙 closeBluetooth
 
 	boolean res = BleManager.getInstance().closeBluetooth();
+
+### 2.4 开始扫描
+
+	boolean res = BleManager.getInstance().startBleScan();
+
+**扫描结果回调 : onDiscoverDevice**
+	
+	public void onDiscoverDevice(final String name, final String address);
+
+### 2.5 停止扫描
+
+	boolean res = BleManager.getInstance().stopBleScan();
